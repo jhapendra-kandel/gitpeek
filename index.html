@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="github-dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>GitPeek — Explore GitHub Repositories</title>
+  <meta name="description" content="A beautiful, fast GitHub repository explorer. Browse files, preview code, and explore any public repo." />
+  <meta name="theme-color" content="#0d1117" />
+  <link rel="icon" type="image/png" href="Images/Logo.png" />
+
+  <!-- Fonts: Sora (display) + JetBrains Mono (code) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Prism.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
+
+  <!-- App CSS -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay hidden" role="status" aria-live="polite">
+    <div class="loading-box">
+      <div class="loading-ring"></div>
+      <p id="loading-text">Loading repository…</p>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Hover Preview Tooltip -->
+  <div id="hover-preview" class="hover-preview" aria-hidden="true">
+    <div id="hover-preview-content" class="hover-preview-content"></div>
+  </div>
+
+  <!-- Theme Dropdown -->
+  <div id="theme-dropdown" class="dropdown" role="menu" aria-label="Choose theme">
+    <button class="dropdown-item" data-theme="github-dark" role="menuitem">
+      <span class="theme-dot" style="background:#161b22;border:1.5px solid #30363d"></span>GitHub Dark
+    </button>
+    <button class="dropdown-item" data-theme="vscode-dark" role="menuitem">
+      <span class="theme-dot" style="background:#1e1e1e;border:1.5px solid #3a3a3a"></span>VS Code Dark
+    </button>
+    <button class="dropdown-item" data-theme="light-minimal" role="menuitem">
+      <span class="theme-dot" style="background:#fafafa;border:1.5px solid #d0d7de"></span>Light Minimal
+    </button>
+  </div>
+
+  <!-- ==================== APP SHELL ==================== -->
+  <div id="app" class="app">
+
+    <!-- TOP BAR -->
+    <header class="topbar" role="banner">
+      <div class="topbar-section topbar-left">
+        <button id="sidebar-toggle" class="icon-btn" aria-label="Toggle sidebar" title="Toggle Sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>
+          </svg>
+        </button>
+        <a href="." class="brand" aria-label="GitPeek home">
+          <img src="Images/Logo.png" alt="" class="brand-logo" id="brand-logo" />
+          <span class="brand-name">GitPeek</span>
+        </a>
+      </div>
+
+      <div class="topbar-section topbar-center">
+        <div class="repo-input-group" id="drag-drop-zone">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="input-icon">
+            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>
+          </svg>
+          <input type="text" id="repo-input" class="repo-input"
+            placeholder="github.com/owner/repo  or  owner/repo"
+            aria-label="GitHub repository URL or path"
+            autocomplete="off" spellcheck="false" />
+          <button id="repo-load-btn" class="repo-load-btn" aria-label="Load repository">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m9 18 6-6-6-6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="topbar-section topbar-right">
+        <span id="rate-limit-badge" class="rate-limit-badge hidden" title="GitHub API rate limit remaining">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span id="rate-limit-text">—</span>
+        </span>
+
+        <button id="split-btn" class="icon-btn" title="Split View (Ctrl+\)" aria-label="Toggle split view">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/>
+          </svg>
+        </button>
+
+        <button id="theme-btn" class="icon-btn" title="Switch Theme" aria-label="Switch theme">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+          </svg>
+        </button>
+
+        <a href="https://github.com" target="_blank" rel="noopener noreferrer" class="icon-btn" aria-label="Open GitHub" title="GitHub">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+        </a>
+      </div>
+    </header>
+
+    <!-- MAIN LAYOUT -->
+    <div class="main-layout" id="main-layout">
+
+      <!-- SIDEBAR -->
+      <aside id="sidebar" class="sidebar" aria-label="File explorer sidebar">
+
+        <!-- Sidebar Tab Icons -->
+        <nav class="sidebar-tabs" role="tablist" aria-label="Sidebar sections">
+          <button class="sidebar-tab active" data-tab="explorer" role="tab" aria-selected="true" aria-controls="panel-explorer" title="Explorer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </button>
+          <button class="sidebar-tab" data-tab="search" role="tab" aria-selected="false" aria-controls="panel-search" title="Search (Ctrl+K)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+            </svg>
+          </button>
+          <button class="sidebar-tab" data-tab="favorites" role="tab" aria-selected="false" aria-controls="panel-favorites" title="Favorites">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </button>
+          <button class="sidebar-tab" data-tab="recent" role="tab" aria-selected="false" aria-controls="panel-recent" title="Recent Repos">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </button>
+        </nav>
+
+        <!-- Sidebar Content -->
+        <div class="sidebar-body">
+
+          <!-- EXPLORER PANEL -->
+          <div id="panel-explorer" class="sidebar-panel active" role="tabpanel">
+            <div class="panel-header">
+              <span class="panel-label">EXPLORER</span>
+              <div class="panel-header-actions">
+                <button id="collapse-all-btn" class="icon-btn-xs" title="Collapse All" aria-label="Collapse all folders">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m3 8 4-4 4 4"/><path d="M7 4v16"/><path d="m13 16 4 4 4-4"/><path d="M17 20V4"/>
+                  </svg>
+                </button>
+                <button id="download-zip-btn" class="icon-btn-xs hidden" title="Download ZIP" aria-label="Download repository as ZIP">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Repo Info Card -->
+            <div id="repo-info-card" class="repo-info-card hidden">
+              <img id="owner-avatar" src="" alt="" class="owner-avatar" />
+              <div class="repo-info-text">
+                <div id="repo-full-name" class="repo-full-name">—</div>
+                <div id="repo-meta" class="repo-meta"></div>
+              </div>
+            </div>
+
+            <!-- File Tree -->
+            <div id="file-tree" class="file-tree" role="tree" aria-label="Repository file tree">
+              <!-- Empty state -->
+              <div class="empty-state" id="tree-empty">
+                <div class="empty-icon">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </div>
+                <p>No repository loaded</p>
+                <p class="empty-sub">Paste a GitHub URL above</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- SEARCH PANEL -->
+          <div id="panel-search" class="sidebar-panel" role="tabpanel" aria-hidden="true">
+            <div class="panel-header">
+              <span class="panel-label">SEARCH FILES</span>
+            </div>
+            <div class="search-field">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+              </svg>
+              <input type="text" id="file-search" class="search-field-input"
+                placeholder="Filename, extension…"
+                aria-label="Search files in repository" autocomplete="off" />
+              <button id="search-clear" class="search-clear hidden" aria-label="Clear search">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+              </button>
+            </div>
+            <div id="search-results" class="search-results">
+              <p class="search-hint">Type to search across all filenames</p>
+            </div>
+          </div>
+
+          <!-- FAVORITES PANEL -->
+          <div id="panel-favorites" class="sidebar-panel" role="tabpanel" aria-hidden="true">
+            <div class="panel-header">
+              <span class="panel-label">FAVORITES</span>
+              <button id="clear-favorites-btn" class="icon-btn-xs" title="Clear all favorites" aria-label="Clear all favorites">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+            <div id="favorites-list" class="item-list">
+              <div class="empty-state">
+                <div class="empty-icon">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                </div>
+                <p>No starred files yet</p>
+                <p class="empty-sub">Click ★ on any file to save it</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECENT PANEL -->
+          <div id="panel-recent" class="sidebar-panel" role="tabpanel" aria-hidden="true">
+            <div class="panel-header">
+              <span class="panel-label">RECENT REPOS</span>
+              <button id="clear-recent-btn" class="icon-btn-xs" title="Clear history" aria-label="Clear recent repos">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                </svg>
+              </button>
+            </div>
+            <div id="recent-list" class="item-list">
+              <div class="empty-state">
+                <div class="empty-icon">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <p>No recent repos</p>
+                <p class="empty-sub">Visited repos appear here</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </aside>
+
+      <!-- Sidebar Resize Handle -->
+      <div id="sidebar-resize" class="sidebar-resize" aria-hidden="true"></div>
+
+      <!-- CONTENT AREA -->
+      <main id="content-area" class="content-area" role="main">
+
+        <!-- Welcome Screen -->
+        <div id="welcome-screen" class="welcome-screen">
+          <div class="welcome-content">
+            <div class="welcome-logo-wrap">
+              <img src="Images/Logo.png" alt="GitPeek" class="welcome-logo" id="welcome-logo" />
+            </div>
+            <h1 class="welcome-title">GitPeek</h1>
+            <p class="welcome-sub">A beautiful GitHub repository explorer</p>
+            <div class="welcome-chips">
+              <span class="chip">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                File Tree
+              </span>
+              <span class="chip">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Syntax Highlight
+              </span>
+              <span class="chip">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></svg>
+                Split View
+              </span>
+              <span class="chip">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                Favorites
+              </span>
+              <span class="chip">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Offline Cache
+              </span>
+            </div>
+            <div class="drop-zone-hint" id="welcome-drop-zone">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+              Drop a GitHub URL here to load instantly
+            </div>
+            <div class="welcome-shortcuts">
+              <kbd>Ctrl+K</kbd> Search &nbsp;·&nbsp;
+              <kbd>Ctrl+\</kbd> Split View &nbsp;·&nbsp;
+              <kbd>Ctrl+S</kbd> Star File &nbsp;·&nbsp;
+              <kbd>←→</kbd> Navigate Files
+            </div>
+          </div>
+        </div>
+
+        <!-- Primary Preview Pane -->
+        <div id="primary-pane" class="preview-pane hidden">
+          <div class="pane-header">
+            <div id="primary-breadcrumb" class="pane-breadcrumb" aria-label="Current file path"></div>
+            <div class="pane-header-actions">
+              <label id="sandbox-toggle-wrap" class="sandbox-toggle hidden" title="Toggle HTML sandbox">
+                <input type="checkbox" id="sandbox-strict" checked aria-label="Strict sandbox mode" />
+                <span class="sandbox-label">Sandbox</span>
+              </label>
+              <button id="primary-star-btn" class="icon-btn-xs" title="Star file (Ctrl+S)" aria-label="Star this file">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </button>
+              <a id="primary-raw-btn" class="icon-btn-xs" title="Download file" aria-label="Download raw file" target="_blank" rel="noopener noreferrer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+                </svg>
+              </a>
+              <a id="primary-github-btn" class="icon-btn-xs" title="View on GitHub" aria-label="View on GitHub" target="_blank" rel="noopener noreferrer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+              </a>
+            </div>
+          </div>
+          <div id="primary-content" class="pane-content"></div>
+        </div>
+
+        <!-- Secondary Preview Pane (Split View) -->
+        <div id="secondary-pane" class="preview-pane split-pane hidden">
+          <div class="pane-header">
+            <div id="secondary-breadcrumb" class="pane-breadcrumb" aria-label="Secondary file path"></div>
+            <div class="pane-header-actions">
+              <button id="secondary-star-btn" class="icon-btn-xs" title="Star file" aria-label="Star secondary file">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </button>
+              <a id="secondary-raw-btn" class="icon-btn-xs" title="Download file" aria-label="Download raw file" target="_blank" rel="noopener noreferrer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>
+                </svg>
+              </a>
+              <button id="close-split-btn" class="icon-btn-xs" title="Close split view (Esc)" aria-label="Close split pane">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="secondary-content" class="pane-content"></div>
+        </div>
+
+        <!-- Markdown TOC Panel -->
+        <div id="md-toc-panel" class="md-toc-panel hidden">
+          <div class="panel-header">
+            <span class="panel-label">CONTENTS</span>
+            <button id="close-toc-btn" class="icon-btn-xs" aria-label="Close table of contents">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+            </button>
+          </div>
+          <div id="md-toc-content" class="md-toc-content"></div>
+        </div>
+
+      </main>
+    </div>
+
+    <!-- STATUS BAR -->
+    <footer class="status-bar" role="contentinfo">
+      <div class="status-left">
+        <span id="status-branch" class="status-item hidden">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+          <span id="branch-name">main</span>
+        </span>
+        <span id="status-file-count" class="status-item hidden">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+          <span id="file-count-text">—</span>
+        </span>
+      </div>
+      <div class="status-right">
+        <span id="status-lang" class="status-item"></span>
+        <span class="status-item status-hint">Ctrl+K · Search</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Mobile Sidebar Overlay -->
+  <div id="mobile-overlay" class="mobile-overlay hidden" aria-hidden="true"></div>
+
+  <!-- ===================== SCRIPTS ===================== -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
