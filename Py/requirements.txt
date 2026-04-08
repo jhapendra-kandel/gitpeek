@@ -1,0 +1,24 @@
+# GitPeek — Python Requirements
+# Install with:  pip install -r requirements.txt
+# Or use the setup scripts: setup.sh / setup.bat
+
+# ── Core (always required) ─────────────────────────────────────
+# No mandatory third-party packages for basic operation.
+# urllib (stdlib) is used as the fallback HTTP client.
+
+# ── Strongly recommended ───────────────────────────────────────
+requests>=2.28.0          # Faster, more reliable HTTP than urllib
+
+# ── CLI enhancement ────────────────────────────────────────────
+rich>=13.0.0              # Beautiful terminal output, syntax highlight
+
+# ── GUI image preview (optional) ───────────────────────────────
+# Uncomment to enable image display in the Tkinter GUI:
+# Pillow>=10.0.0
+
+# ── Notes ──────────────────────────────────────────────────────
+# tkinter comes bundled with Python on Windows and macOS.
+# On Linux install it with:
+#   sudo apt install python3-tk    (Debian/Ubuntu)
+#   sudo dnf install python3-tkinter (Fedora)
+#   sudo pacman -S tk              (Arch)
